@@ -1,0 +1,523 @@
+<html><head><base href="." /></head>
+<style>
+    body {
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #000033;
+        font-family: 'Times New Roman', serif;
+        overflow: hidden;
+    }
+
+    .snow, .gift, .tree {
+        position: fixed;
+        color: white;
+        pointer-events: none;
+        z-index: 1;
+        animation: fall linear infinite;
+    }
+
+    @keyframes fall {
+        0% {
+            transform: translateY(-100vh) translateX(0);
+        }
+        100% {
+            transform: translateY(100vh) translateX(100px);
+        }
+    }
+
+    #gameContainer {
+        position: relative;
+        width: 400px;
+        height: 300px;
+        z-index: 2;
+    }
+
+    #gameCanvas {
+        border: 4px solid #4169E1;
+        background: #000066;
+    }
+
+    .menu {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        background: rgba(0, 0, 102, 0.9);
+        padding: 20px;
+        border-radius: 10px;
+        border: 2px solid #87CEEB;
+    }
+
+    .button {
+        display: inline-block;
+        margin: 10px;
+        padding: 10px 20px;
+        background: #4169E1;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: all 0.3s;
+    }
+
+    .button:hover {
+        background: #1E90FF;
+        transform: scale(1.05);
+    }
+
+    #score {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: #87CEEB;
+        font-size: 18px;
+    }
+
+    #level {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        color: #87CEEB;
+        font-size: 18px;
+    }
+
+    #speedControl {
+        position: absolute;
+        left: -120px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 102, 0.9);
+        padding: 10px;
+        border-radius: 10px;
+        border: 2px solid #87CEEB;
+        color: #87CEEB;
+    }
+
+    .speed-button {
+        display: block;
+        width: 100px;
+        margin: 5px 0;
+        padding: 8px;
+        background: #4169E1;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+    .speed-button:hover {
+        background: #1E90FF;
+        transform: scale(1.05);
+    }
+
+    .gem {
+        animation: glow 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+        from {
+            filter: drop-shadow(0 0 2px #87CEEB);
+        }
+        to {
+            filter: drop-shadow(0 0 8px #4169E1);
+        }
+    }
+</style>
+
+<body>
+<script>
+function createFallingElement(type) {
+    const element = document.createElement('div');
+    element.className = type;
+    element.style.left = Math.random() * window.innerWidth + 'px';
+    element.style.animationDuration = Math.random() * 3 + 2 + 's';
+    
+    // Add Christmas tree emoji as an option
+    if (type === 'snow') {
+        element.innerHTML = '❄';
+        element.style.fontSize = (Math.random() * 10 + 10) + 'px';
+    } else if (type === 'gift') {
+        element.innerHTML = '🎁';
+        element.style.fontSize = (Math.random() * 15 + 15) + 'px';
+    } else if (type === 'tree') {
+        element.innerHTML = '🎄';
+        element.style.fontSize = (Math.random() * 20 + 20) + 'px';
+    }
+    
+    document.body.appendChild(element);
+
+    element.addEventListener('animationend', () => {
+        element.remove();
+    });
+}
+
+// Create snow and gifts
+function createFallingElements() {
+    // Create snow more frequently
+    if(Math.random() < 0.3) {
+        createFallingElement('snow');
+    }
+    // Create gifts less frequently
+    if(Math.random() < 0.05) {
+        createFallingElement('gift');
+    }
+    // Create trees occasionally
+    if(Math.random() < 0.02) {
+        createFallingElement('tree');
+    }
+}
+
+// Start the falling elements
+setInterval(createFallingElements, 100);
+</script>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="300"></canvas>
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="speedControl">
+        <button class="speed-button" onclick="changeSpeed('slow')">Slow</button>
+        <button class="speed-button" onclick="changeSpeed('normal')">Normal</button>
+        <button class="speed-button" onclick="changeSpeed('fast')">Fast</button>
+    </div>
+    <div id="menu" class="menu">
+        <h1 style="color: #87CEEB; font-size: 24px">Crystal Snake</h1>
+        <button class="button" onclick="startGame('classic')">Classic Mode</button>
+        <button class="button" onclick="startGame('campaign')">Campaign Mode</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreElement = document.getElementById('score');
+const levelElement = document.getElementById('level');
+const menuElement = document.getElementById('menu');
+
+// Adding blocks array to track obstacles
+let blocks = [];
+
+let snake = [];
+let food = {};
+let gem = {};
+let direction = 'right';
+let gameLoop;
+let score = 0;
+let level = 1;
+let gameMode = '';
+let speed = 100;
+let gemCounter = 0;
+
+const gridSize = 10;
+const gridWidth = canvas.width / gridSize;
+const gridHeight = canvas.height / gridSize;
+
+function initGame() {
+    snake = [
+        {x: 5, y: 5},
+        {x: 4, y: 5},
+        {x: 3, y: 5}
+    ];
+    direction = 'right';
+    score = 0;
+    level = 1;
+    speed = 100;
+    gemCounter = 0;
+    blocks = [];
+    if (gameMode === 'campaign') {
+        generateBlocks();
+    }
+    updateScore();
+    updateLevel();
+    spawnFood();
+    spawnGem();
+}
+
+function generateBlocks() {
+    // Clear existing blocks
+    blocks = [];
+    
+    // Generate blocks based on level
+    const numBlocks = Math.min(level * 2, 20); // Increase blocks with level, max 20
+    
+    for (let i = 0; i < numBlocks; i++) {
+        let block;
+        let validPosition = false;
+        
+        while (!validPosition) {
+            block = {
+                x: Math.floor(Math.random() * gridWidth),
+                y: Math.floor(Math.random() * gridHeight)
+            };
+            
+            // Check if block overlaps with snake, food, or gem
+            validPosition = !snake.some(segment => segment.x === block.x && segment.y === block.y) &&
+                           !(food.x === block.x && food.y === block.y) &&
+                           !(gem.x === block.x && gem.y === block.y) &&
+                           !blocks.some(b => b.x === block.x && b.y === block.y);
+        }
+        
+        blocks.push(block);
+    }
+}
+
+function changeSpeed(speedSetting) {
+    clearInterval(gameLoop);
+    switch(speedSetting) {
+        case 'slow':
+            speed = 150;
+            break;
+        case 'normal':
+            speed = 100;
+            break;
+        case 'fast':
+            speed = 50;
+            break;
+    }
+    if (menuElement.style.display === 'none') {
+        gameLoop = setInterval(update, speed);
+    }
+}
+
+function startGame(mode) {
+    gameMode = mode;
+    menuElement.style.display = 'none';
+    initGame();
+    gameLoop = setInterval(update, speed);
+}
+
+function spawnFood() {
+    food = {
+        x: Math.floor(Math.random() * gridWidth),
+        y: Math.floor(Math.random() * gridHeight)
+    };
+}
+
+function spawnGem() {
+    gem = {
+        x: Math.floor(Math.random() * gridWidth),
+        y: Math.floor(Math.random() * gridHeight)
+    };
+}
+
+function update() {
+    const head = {x: snake[0].x, y: snake[0].y};
+
+    switch(direction) {
+        case 'up': head.y--; break;
+        case 'down': head.y++; break;
+        case 'left': head.x--; break;
+        case 'right': head.x++; break;
+    }
+
+    // Check collision with walls, snake body, or blocks
+    if (head.x < 0 || head.x >= gridWidth || 
+        head.y < 0 || head.y >= gridHeight || 
+        snake.some(segment => segment.x === head.x && segment.y === head.y) ||
+        (gameMode === 'campaign' && blocks.some(block => block.x === head.x && block.y === head.y))) {
+        gameOver();
+        return;
+    }
+
+    snake.unshift(head);
+
+    if (head.x === food.x && head.y === food.y) {
+        score += 10;
+        updateScore();
+        if (score % 50 === 0) {
+            level++;
+            updateLevel();
+            speed = Math.max(50, speed - 10);
+            clearInterval(gameLoop);
+            gameLoop = setInterval(update, speed);
+            if (gameMode === 'campaign') {
+                generateBlocks(); // Generate new blocks when leveling up
+            }
+        }
+        spawnFood();
+        
+        if (gameMode === 'campaign') {
+            gemCounter++;
+            if (gemCounter >= 5) {
+                spawnGem();
+                gemCounter = 0;
+            }
+        }
+    } else if (head.x === gem.x && head.y === gem.y) {
+        score += 50;
+        level++;
+        updateScore();
+        updateLevel();
+        speed = Math.max(50, speed - 10);
+        clearInterval(gameLoop);
+        gameLoop = setInterval(update, speed);
+        gem = {x: -1, y: -1};
+        if (gameMode === 'campaign') {
+            generateBlocks(); // Generate new blocks when collecting gem
+        }
+    } else {
+        snake.pop();
+    }
+
+    draw();
+}
+
+function draw() {
+    ctx.fillStyle = '#000066';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw blocks (campaign mode only)
+    if (gameMode === 'campaign') {
+        ctx.fillStyle = '#0000FF'; // Blue color for blocks
+        blocks.forEach(block => {
+            ctx.fillRect(block.x * gridSize, block.y * gridSize, gridSize - 1, gridSize - 1);
+        });
+    }
+
+    // Draw snake
+    snake.forEach((segment, index) => {
+        ctx.fillStyle = index === 0 ? '#87CEEB' : '#4169E1';
+        ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
+        
+        // Add face to snake head
+        if (index === 0) {
+            // Eyes
+            ctx.fillStyle = '#000000';
+            
+            // Adjust eye positions based on direction
+            let leftEyeX, leftEyeY, rightEyeX, rightEyeY;
+            let mouthX, mouthY;
+            
+            switch(direction) {
+                case 'right':
+                    leftEyeX = segment.x * gridSize + gridSize - 4;
+                    leftEyeY = segment.y * gridSize + 3;
+                    rightEyeX = segment.x * gridSize + gridSize - 4;
+                    rightEyeY = segment.y * gridSize + gridSize - 4;
+                    mouthX = segment.x * gridSize + gridSize - 2;
+                    mouthY = segment.y * gridSize + gridSize/2;
+                    break;
+                case 'left':
+                    leftEyeX = segment.x * gridSize + 3;
+                    leftEyeY = segment.y * gridSize + 3;
+                    rightEyeX = segment.x * gridSize + 3;
+                    rightEyeY = segment.y * gridSize + gridSize - 4;
+                    mouthX = segment.x * gridSize + 1;
+                    mouthY = segment.y * gridSize + gridSize/2;
+                    break;
+                case 'up':
+                    leftEyeX = segment.x * gridSize + 3;
+                    leftEyeY = segment.y * gridSize + 3;
+                    rightEyeX = segment.x * gridSize + gridSize - 4;
+                    rightEyeY = segment.y * gridSize + 3;
+                    mouthX = segment.x * gridSize + gridSize/2;
+                    mouthY = segment.y * gridSize + 1;
+                    break;
+                case 'down':
+                    leftEyeX = segment.x * gridSize + 3;
+                    leftEyeY = segment.y * gridSize + gridSize - 4;
+                    rightEyeX = segment.x * gridSize + gridSize - 4;
+                    rightEyeY = segment.y * gridSize + gridSize - 4;
+                    mouthX = segment.x * gridSize + gridSize/2;
+                    mouthY = segment.y * gridSize + gridSize - 2;
+                    break;
+            }
+            
+            // Draw eyes
+            ctx.beginPath();
+            ctx.arc(leftEyeX, leftEyeY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(rightEyeX, rightEyeY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw smile
+            ctx.fillStyle = '#FF0000';
+            ctx.beginPath();
+            ctx.arc(mouthX, mouthY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+
+    // Draw snowman food
+    ctx.fillStyle = '#FFFFFF';
+    // Bottom circle
+    ctx.beginPath();
+    ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize - 1, gridSize/2, 0, Math.PI * 2);
+    ctx.fill();
+    // Middle circle
+    ctx.beginPath();
+    ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Head circle
+    ctx.beginPath();
+    ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/4, gridSize/3, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(food.x * gridSize + gridSize/2 - 2, food.y * gridSize + gridSize/4 - 1, 1.5, 0, Math.PI * 2);
+    ctx.arc(food.x * gridSize + gridSize/2 + 2, food.y * gridSize + gridSize/4 - 1, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw gem
+    if (gem.x >= 0 && gem.y >= 0) {
+        ctx.fillStyle = '#E0FFFF';
+        ctx.beginPath();
+        ctx.moveTo(gem.x * gridSize + gridSize/2, gem.y * gridSize);
+        ctx.lineTo(gem.x * gridSize + gridSize, gem.y * gridSize + gridSize/2);
+        ctx.lineTo(gem.x * gridSize + gridSize/2, gem.y * gridSize + gridSize);
+        ctx.lineTo(gem.x * gridSize, gem.y * gridSize + gridSize/2);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+function updateScore() {
+    scoreElement.textContent = `Score: ${score}`;
+}
+
+function updateLevel() {
+    levelElement.textContent = `Level: ${level}`;
+}
+
+function gameOver() {
+    clearInterval(gameLoop);
+    menuElement.style.display = 'block';
+    ctx.fillStyle = 'rgba(0, 0, 102, 0.75)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#87CEEB';
+    ctx.font = '24px "Times New Roman"';
+    ctx.textAlign = 'center';
+    ctx.fillText('Game Over!', canvas.width/2, canvas.height/2 - 25);
+    ctx.font = '16px "Times New Roman"';
+    ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 0);
+    ctx.fillText(`Level Reached: ${level}`, canvas.width/2, canvas.height/2 + 20);
+}
+
+document.addEventListener('keydown', (event) => {
+    switch(event.key) {
+        case 'ArrowUp':
+            if (direction !== 'down') direction = 'up';
+            break;
+        case 'ArrowDown':
+            if (direction !== 'up') direction = 'down';
+            break;
+        case 'ArrowLeft':
+            if (direction !== 'right') direction = 'left';
+            break;
+        case 'ArrowRight':
+            if (direction !== 'left') direction = 'right';
+            break;
+    }
+});
+</script>
+</body>
+</html>
